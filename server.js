@@ -10,7 +10,6 @@ const collectionRoutes = require('./src/routes/collections');
 const discountRoutes = require('./src/routes/discounts');
 const miscRoutes = require('./src/routes/misc');
 const statsRoutes = require("./src/routes/stats");
-// const statsRoutes = require("./routes/stats.routes");
 
 const app = express();
 app.use(cors());
