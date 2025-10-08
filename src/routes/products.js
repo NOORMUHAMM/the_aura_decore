@@ -4,15 +4,22 @@ const auth = require("../middleware/auth");
 const Product = require("../models/Product");
 const { computeDiscountForProduct } = require("../utils/discounts");
 const multer = require("multer");
-const path = require("path");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
 
-// ⚙️ Multer config for uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
+// 🌥️ Cloudinary configuration
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.CLOUD_API_KEY,
+  api_secret: process.env.CLOUD_API_SECRET,
+});
+
+// ⚙️ Multer Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "aura_decore_products", // Your Cloudinary folder name
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
   },
 });
 const upload = multer({ storage });
@@ -27,7 +34,7 @@ router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 12, 100);
     const filter = { active: true };
 
-    // 🧩 Filter by category (can support multiple via comma-separated list)
+    // 🧩 Filter by category (supports multiple via comma-separated list)
     if (req.query.category) {
       const cats = req.query.category.split(",").map((c) => c.trim());
       filter.categories = { $in: cats };
@@ -82,13 +89,13 @@ router.get("/:id", async (req, res) => {
 
 /* --------------------------------------------------
    ✅ POST /api/products
-   Create a new product (supports file upload)
+   Create a new product (Cloudinary upload)
 -------------------------------------------------- */
 router.post("/", auth, upload.single("image"), async (req, res) => {
   try {
     let payload = req.body;
 
-    // If categories/collections are stringified (from form-data)
+    // Handle stringified arrays
     if (payload.categories && typeof payload.categories === "string") {
       payload.categories = payload.categories.split(",");
     }
@@ -96,9 +103,9 @@ router.post("/", auth, upload.single("image"), async (req, res) => {
       payload.collections = payload.collections.split(",");
     }
 
-    // Add uploaded image if available
-    if (req.file) {
-      payload.images = [`/uploads/${req.file.filename}`];
+    // ✅ Cloudinary image URL
+    if (req.file && req.file.path) {
+      payload.images = [req.file.path];
     }
 
     const product = new Product(payload);
@@ -116,7 +123,7 @@ router.post("/", auth, upload.single("image"), async (req, res) => {
 
 /* --------------------------------------------------
    ✅ PUT /api/products/:id
-   Update an existing product
+   Update an existing product (Cloudinary upload)
 -------------------------------------------------- */
 router.put("/:id", auth, upload.single("image"), async (req, res) => {
   try {
@@ -129,8 +136,9 @@ router.put("/:id", auth, upload.single("image"), async (req, res) => {
       payload.collections = payload.collections.split(",");
     }
 
-    if (req.file) {
-      payload.images = [`/uploads/${req.file.filename}`];
+    // ✅ Update with Cloudinary image if uploaded
+    if (req.file && req.file.path) {
+      payload.images = [req.file.path];
     }
 
     let product = await Product.findById(req.params.id);
